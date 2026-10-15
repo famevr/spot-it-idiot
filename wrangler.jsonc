@@ -3,6 +3,9 @@
   "name": "spot-it-idiot",
   "main": "src/worker.js",
   "compatibility_date": "2026-06-01",
+  // Give the game a public https://spot-it-idiot.<your-subdomain>.workers.dev address.
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
