@@ -2,20 +2,31 @@
 // Serves the game (from ./public) and a tiny leaderboard API backed by D1.
 //
 //   GET  /api/scores?me=<playerId>   -> { rows: [{ name, score, fastest, at, me }] }  (top 100)
+//   POST /api/start                  -> { token }   signed start time, fetched when a game begins
 //   POST /api/scores                 -> { ok: true, rows: [...] }
-//        body: { playerId, name, score, fastest, level }
+//        body: { playerId, name, score, fastest, level, token }
 //
 // Each browser has a random playerId; its row keeps that player's best score and fastest time.
 
 const TOP_N = 100;
 const MAX_SCORE = 5000;          // far beyond 200 levels + bonus levels; anything higher is fake
-const MIN_FASTEST = 0.1;         // seconds; no human finds the shape faster than this
+const MIN_FASTEST = 0.15;        // seconds; no human sees, finds and clicks the shape faster than this
 const MAX_FASTEST = 5;           // the slowest level allows 3 s, so a "best" time above this is fake
 const SUBMIT_GAP_MS = 4000;      // one score per device/IP every few seconds (a game takes longer)
+// A real game takes time: 3 s countdown, then for every match at least ~0.15 s to react plus the
+// 0.38 s pause the game adds. Scores that arrive sooner than this after the game started are fake.
+const MIN_GAME_MS = (score) => 3000 + score * 450;
+const MAX_TOKEN_AGE_MS = 3 * 60 * 60 * 1000;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === '/api/start') {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, { allow: 'POST' });
+      try { return json({ token: await makeToken(env) }); }
+      catch (err) { console.error(err); return json({ error: 'Server error' }, 500); }
+    }
 
     if (url.pathname === '/api/scores') {
       try {
@@ -91,6 +102,13 @@ async function submit(request, env) {
   const level = body.level;
   if (!Number.isInteger(level) || level < 1 || score > level) return json({ error: 'Bad level' }, 400);
 
+  // --- the game must have really been played: a valid start token, old enough for this score ---
+  const started = await readToken(env, body.token);
+  if (started === null) return json({ error: 'Missing or invalid game token' }, 400);
+  const playedMs = Date.now() - started;
+  if (playedMs > MAX_TOKEN_AGE_MS) return json({ error: 'Game too old' }, 400);
+  if (playedMs < MIN_GAME_MS(score)) return json({ error: 'Too fast to be real' }, 400);
+
   // --- simple rate limit per IP (stored hashed, never the raw address) ---
   const now = Date.now();
   const ipHash = await sha256((request.headers.get('cf-connecting-ip') || 'unknown') + '|' + (env.RATE_SALT || 'spot-it-idiot'));
@@ -121,6 +139,53 @@ async function submit(request, env) {
   }
 
   return json({ ok: true, rows: await topScores(env, playerId) });
+}
+
+// ---------- signed game tokens ----------
+// The signing key comes from the SCORE_SECRET setting if you add one in Cloudflare; otherwise a random key
+// is created once and kept in the database, so nothing needs setting up.
+let keyPromise = null;
+function signingKey(env) {
+  if (!keyPromise) keyPromise = (async () => {
+    let secret = env.SCORE_SECRET;
+    if (!secret) {
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS config (k TEXT PRIMARY KEY, v TEXT NOT NULL)').run();
+      const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'token_key'").first();
+      if (row) secret = row.v;
+      else {
+        secret = b64url(crypto.getRandomValues(new Uint8Array(32)));
+        await env.DB.prepare("INSERT OR IGNORE INTO config (k, v) VALUES ('token_key', ?1)").bind(secret).run();
+        secret = (await env.DB.prepare("SELECT v FROM config WHERE k = 'token_key'").first()).v;
+      }
+    }
+    return crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+  })().catch(err => { keyPromise = null; throw err; });
+  return keyPromise;
+}
+async function makeToken(env) {
+  const payload = b64url(new TextEncoder().encode(JSON.stringify({ t: Date.now(), n: b64url(crypto.getRandomValues(new Uint8Array(9))) })));
+  const sig = await crypto.subtle.sign('HMAC', await signingKey(env), new TextEncoder().encode(payload));
+  return payload + '.' + b64url(new Uint8Array(sig));
+}
+// Returns the game's start time, or null if the token is missing, malformed or forged.
+async function readToken(env, token) {
+  if (typeof token !== 'string' || token.length > 300) return null;
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig) return null;
+  try {
+    const ok = await crypto.subtle.verify('HMAC', await signingKey(env), fromB64url(sig), new TextEncoder().encode(payload));
+    if (!ok) return null;
+    const t = JSON.parse(new TextDecoder().decode(fromB64url(payload))).t;
+    return Number.isFinite(t) && t <= Date.now() ? t : null;
+  } catch { return null; }
+}
+function b64url(bytes) {
+  let s = ''; for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function fromB64url(str) {
+  const s = atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
 }
 
 function validPlayerId(id) {

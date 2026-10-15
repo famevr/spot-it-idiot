@@ -69,7 +69,7 @@ Then open <http://localhost:8787>.
 ## Good to know
 
 - **Who's on the board:** everyone who opens the link. Each browser counts as one player and keeps its best score and fastest time. The name shown is the one they used for their best score.
-- **Cheating:** the server rejects impossible results (times under 0.1 s, more matches than levels, huge scores) and limits each connection to one score every few seconds. That stops casual cheating, but a determined person could still send fake scores. To remove one, use the dashboard: **Storage & Databases → D1 → spot-it-idiot → Console**, then run
+- **Bots and cheating:** the shapes are drawn as pictures, so a script reading the page can't see which one is the answer; clicks made by a script are ignored; runs with superhuman or machine-steady reaction times aren't sent; the server only accepts a score with a signed start ticket from that game, and only if enough time has passed to earn it; and it rejects impossible results and limits each connection to one score every few seconds. That stops bots and casual cheating, but a determined person could still find a way. To remove one, use the dashboard: **Storage & Databases → D1 → spot-it-idiot → Console**, then run
   `DELETE FROM scores WHERE name = 'TheirName';`
 - **Reset the whole leaderboard:** in the same Console, run `DELETE FROM scores;`
 - **Free plan limits:** 100,000 Worker requests a day (each finished game uses about two) and 100,000 database writes a day. Images and other files don't count.

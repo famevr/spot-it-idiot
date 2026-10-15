@@ -14,3 +14,9 @@ CREATE TABLE IF NOT EXISTS submit_log (
   ip_hash TEXT PRIMARY KEY,
   last_at INTEGER NOT NULL
 );
+
+-- Holds the key that signs game tokens (created automatically by the Worker if missing).
+CREATE TABLE IF NOT EXISTS config (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);

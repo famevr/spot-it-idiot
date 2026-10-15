@@ -72,8 +72,7 @@ body{background:var(--ink);color:var(--fg);font-family:var(--body);overflow:hidd
   transition:transform .12s;animation:pop .28s cubic-bezier(.3,1.6,.6,1) both;animation-delay:var(--d,0ms)}
 .piece:hover{--sc:1.06}
 /* Only the painted shape takes the click, so a neighbour's empty corner can never steal it. */
-.piece{pointer-events:none}
-.piece svg *{pointer-events:visiblePainted}
+.piece canvas,.target canvas{display:block}
 .left{display:flex;align-items:center;gap:8px;justify-self:start}
 .mute{width:40px;height:40px;border-radius:10px;border:2px solid var(--line);background:var(--board);color:var(--fg);cursor:pointer;display:grid;place-items:center;padding:0}
 .mute:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -338,7 +337,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
 
   const $ = id => document.getElementById(id);
   const field = $('field');
-  let player = '', hearts, score, fastest, round, roundStart, limit, raf, locked = true, roundTimeout;
+  let answerBtn = null, player = '', hearts, score, fastest, round, roundStart, limit, raf, locked = true, roundTimeout;
 
 
   // ---------- Language (English / Thai) ----------
@@ -349,6 +348,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       howEnd:'Use your eyes. Not your luck.',
       yourName:'Your name', namePh:'e.g. Fame', play:'Play', nameErr:'Enter a name so your score can go on the board.',
       total:'Total matched', fastest:'Fastest', high:'High scores', player:'Player', again:'Play again', change:'Change name',
+      botRun:'This game looked like it was played by a bot or script, so the score was not added to the online leaderboard.',
       leaderboard:'Leaderboard', lbEmpty:'No scores yet. Be the first!', lbLoading:'Loading scores…',
       shareScore:'Share my score', invite:'Invite a friend', message:'Message', copy:'Copy message', saveImg:'Save image', sendVia:'Send with',
       copied:'Copied! Paste it anywhere.', copyFail:'Select the message and copy it.', saved:'Image saved.', saveFail:'Could not save the image.',
@@ -367,6 +367,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       howEnd:'ตาดีมีชัย ตาลายก็ไปนอน',
       yourName:'ชื่อของคุณ', namePh:'เช่น Fame', play:'เล่น', nameErr:'ใส่ชื่อก่อน เพื่อบันทึกคะแนนลงตาราง',
       total:'จับคู่ถูกทั้งหมด', fastest:'เร็วที่สุด', high:'คะแนนสูงสุด', player:'ผู้เล่น', again:'เล่นอีกครั้ง', change:'เปลี่ยนชื่อ',
+      botRun:'เกมนี้ดูเหมือนใช้บอทหรือโปรแกรมช่วยเล่น คะแนนจึงไม่ถูกส่งขึ้นตารางออนไลน์',
       leaderboard:'ตารางคะแนน', lbEmpty:'ยังไม่มีใครเล่นเลย มาเป็นคนแรกกัน!', lbLoading:'กำลังโหลดคะแนน…',
       shareScore:'แชร์คะแนน', invite:'ชวนเพื่อนมาเล่น', message:'ข้อความ', copy:'คัดลอกข้อความ', saveImg:'บันทึกรูป', sendVia:'ส่งผ่าน',
       copied:'คัดลอกแล้ว! วางได้เลย', copyFail:'เลือกข้อความแล้วคัดลอกเองนะ', saved:'บันทึกรูปแล้ว', saveFail:'บันทึกรูปไม่สำเร็จ',
@@ -409,6 +410,46 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
   function poly(n, r, rot=-90, cy=50){
     const pts=[]; for(let i=0;i<n;i++){const a=(rot+360/n*i)*Math.PI/180; pts.push((50+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));}
     return `<polygon points="${pts.join(' ')}"`;
+  }
+  // Game shapes are painted on a canvas: the page's code holds no readable shape, colour or number,
+  // so a script or AI reading the page can't find the answer — it would have to look at the pixels.
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function polyPts(n, r, rot=-90, cy=50){ const pts=[]; for(let i=0;i<n;i++){ const a=(rot+360/n*i)*Math.PI/180; pts.push([50+r*Math.cos(a), cy+r*Math.sin(a)]); } return pts; }
+  function shapeCanvas(p, size){
+    const wide = p.shape === 'rect', vbW = wide ? 160 : 100, w = size * (wide ? 1.5 : 1), h = size;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    const c = document.createElement('canvas'); c.width = Math.round(w*dpr); c.height = Math.round(h*dpr);
+    c.style.width = w + 'px'; c.style.height = h + 'px'; c.setAttribute('aria-hidden', 'true');
+    const g = c.getContext('2d'); const k = (h*dpr) / 108;            // 4-unit margin keeps the outline inside
+    g.setTransform(k, 0, 0, k, 4*k, 4*k);
+    g.beginPath();
+    let ty = 50, fs = 34;
+    const poly = pts => { pts.forEach(([x,y],i) => i ? g.lineTo(x,y) : g.moveTo(x,y)); g.closePath(); };
+    switch(p.shape){
+      case 'circle': g.arc(50, 50, 44, 0, Math.PI*2); break;
+      case 'square': g.roundRect(8, 8, 84, 84, 6); break;
+      case 'triangle': poly([[50,4],[97,90],[3,90]]); ty = 61; fs = 28; break;
+      case 'hexagon': poly(polyPts(6,49,-90)); break;
+      case 'pentagon': poly(polyPts(5,49,-90,54)); ty = 55; break;
+      case 'octagon': poly(polyPts(8,47,22.5)); break;
+      case 'rect': g.roundRect(6, 22, 148, 56, 6); break;
+    }
+    g.fillStyle = cssVar('--s-' + p.color); g.fill();
+    g.lineWidth = 4; g.lineJoin = 'round'; g.strokeStyle = cssVar('--ink'); g.stroke();
+    g.fillStyle = (p.color==='yellow'||p.color==='green'||p.color==='orange') ? cssVar('--ink') : '#fff';
+    g.font = `700 ${fs}px "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(p.num), wide ? 80 : 50, ty);
+    return c;
+  }
+  // True when the click landed on the painted shape, not its empty corners.
+  function hitShape(btn, ev){
+    if(!ev || ev.detail === 0) return true;                          // keyboard press
+    const c = btn.querySelector('canvas'); if(!c) return true;
+    const rect = c.getBoundingClientRect();
+    const x = Math.floor((ev.clientX - rect.left) / rect.width * c.width), y = Math.floor((ev.clientY - rect.top) / rect.height * c.height);
+    if(x < 0 || y < 0 || x >= c.width || y >= c.height) return false;
+    try{ return c.getContext('2d').getImageData(x, y, 1, 1).data[3] > 20; }catch(e){ return true; }
   }
   function shapeSVG(p, size){
     const fill = COLORS[p.color];
@@ -601,7 +642,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
   const fmt = s => (s==null||!isFinite(s)) ? '--.--' : s.toFixed(2).padStart(5,'0');
 
   function newRound(){
-    clearTimeout(roundTimeout);
+    clearTimeout(roundTimeout); answerBtn = null;
     field.querySelectorAll('.piece').forEach(n=>n.remove());
     round++;
     const lvl = LEVELS[round-1];
@@ -620,8 +661,8 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       while(items.length < count){ const d = makeDistractor(target); if(!seen.has(key(d))){seen.add(key(d)); items.push(d);} }
       limit = timeFor(round);
     }
-    $('target').innerHTML = shapeSVG(target, window.innerWidth<560?56:70);
-    $('target').setAttribute('aria-label',T('target')+describe(target));
+    $('target').replaceChildren(shapeCanvas(target, window.innerWidth<560?56:70));
+    $('target').removeAttribute('aria-label');
     const count = items.length;
     if(!lvl) items = cleanChoices(items, target);
     items.sort(()=>Math.random()-.5);
@@ -629,11 +670,15 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     const {size, spots} = layout(items);
     items.forEach((p,i)=>{
       const b = document.createElement('button');
-      b.className='piece'; b.innerHTML = shapeSVG(p,size);
+      b.className='piece'; b.type='button'; b.appendChild(shapeCanvas(p,size));
       b.style.left=spots[i].x+'px'; b.style.top=spots[i].y+'px'; b.style.setProperty('--d',(i*18)+'ms');
-      b.setAttribute('aria-label',describe(p));
-      b.onclick = () => choose(b, key(p)===key(target));
-      if(key(p)===key(target)) b.dataset.answer='1';
+      const isAnswer = key(p)===key(target);
+      if(isAnswer) answerBtn = b;
+      b.addEventListener('click', ev => {
+        if(!ev.isTrusted){ Guard.fake++; return; }                   // clicks made by a script don't count
+        if(!hitShape(b, ev)) return;
+        choose(b, isAnswer);
+      });
       field.appendChild(b);
     });
     roundStart = performance.now(); locked = false;
@@ -651,9 +696,20 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     raf = requestAnimationFrame(tick);
   }
 
+  // Signs of a bot: script clicks, many reactions faster than a person can see and click,
+  // or reaction times that are machine-steady over a long run.
+  const Guard = { fake: 0, superhuman: 0, times: [],
+    reset(){ this.fake = 0; this.superhuman = 0; this.times = []; },
+    flagged(){
+      if(this.fake > 0 || this.superhuman >= 3) return true;
+      const t = this.times; if(t.length < 12) return false;
+      const m = t.reduce((a,b)=>a+b,0)/t.length, sd = Math.sqrt(t.reduce((a,b)=>a+(b-m)*(b-m),0)/t.length);
+      return sd / m < 0.06;
+    } };
   function choose(btn, ok){
     if(locked) return;
     const el = (performance.now()-roundStart)/1000;
+    if(ok){ Guard.times.push(el); if(el < 0.16) Guard.superhuman++; }
     if(ok){
       locked = true; cancelAnimationFrame(raf);
       score++; $('score').textContent = score; setStreak(streak + 1);
@@ -668,7 +724,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     locked = true; cancelAnimationFrame(raf);
     hearts--; renderHearts(); Sound.wrong(); setStreak(0);
     if(btn) btn.classList.add('wrong');
-    const ans = field.querySelector('[data-answer]'); if(ans) ans.classList.add('reveal');
+    if(answerBtn) answerBtn.classList.add('reveal');
     const f = $('flash'); f.classList.add('bad'); requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove('bad')));
     roundTimeout = setTimeout(hearts<=0 ? endGame : newRound, 900);
   }
@@ -676,7 +732,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
 
   // ---------- Leaderboard: the online board from /api/scores, this device's board if the server can't be reached ----------
   const API = '/api/scores';
-  const Board = { rows: null, saveFailed: false, local: [], localEntry: null };
+  const Board = { rows: null, saveFailed: false, botRun: false, local: [], localEntry: null };
   const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
   // A random id for this browser, so a player's best score updates one row instead of adding new ones.
   const PLAYER_ID = (() => {
@@ -701,10 +757,19 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     if(!$('ovBoard').hidden) renderLb();
   }
   const byRank = (a,b) => b.score - a.score || (a.fastest ?? 99) - (b.fastest ?? 99) || a.at - b.at;
+  // The server hands out a signed start time when a game begins, so it can reject scores
+  // submitted faster than a person could have earned them.
+  let runToken = null;
+  async function getRunToken(){
+    runToken = null;
+    try{ const r = await fetch('/api/start', { method: 'POST', cache: 'no-store' }); if(r.ok) runToken = (await r.json()).token || null; }catch(e){}
+  }
   async function submitOnline(entry){
+    if(Guard.flagged()){ Board.botRun = true; renderBoard(); return; }
+    Board.botRun = false;
     try{
       const res = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ playerId: PLAYER_ID, name: entry.name, score: entry.score, fastest: entry.fastest, level: lastEnd ? lastEnd.round : 0 }) });
+        body: JSON.stringify({ playerId: PLAYER_ID, name: entry.name, score: entry.score, fastest: entry.fastest, level: lastEnd ? lastEnd.round : 0, token: runToken }) });
       const data = await res.json().catch(() => ({}));
       if(!res.ok || !data.ok) throw 0;
       Board.rows = cleanRows(data.rows); Board.saveFailed = false;
@@ -735,7 +800,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     const isMe = e => online ? e.me : e === Board.localEntry;
     $('hs').innerHTML = list.map((e,i)=>`<tr class="${isMe(e)?'me':''}"><td>${i+1}</td><td>${esc(e.name)}</td><td class="n">${e.score}</td><td class="n">${fmt(e.fastest)}</td></tr>`).join('');
     const kind = $('boardKind'); kind.textContent = online ? T('online') : T('device'); kind.classList.toggle('online', online);
-    const note = $('boardNote'); note.hidden = !Board.saveFailed; note.textContent = T('notSaved');
+    const note = $('boardNote'); note.hidden = !(Board.saveFailed || Board.botRun); note.textContent = Board.botRun ? T('botRun') : T('notSaved');
     const box = $('hs').closest('.board-scroll'), me = $('hs').querySelector('.me');
     if(me && box) box.scrollTop = Math.max(0, me.offsetTop - box.clientHeight/2);
   }
@@ -890,7 +955,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
 
   function startGame(){
     Sound.init(); Sound.stopMusic();
-    hearts = MAX_HEARTS; score = 0; fastest = null; round = 0; locked = true; setStreak(0);
+    hearts = MAX_HEARTS; score = 0; fastest = null; round = 0; locked = true; setStreak(0); Guard.reset(); getRunToken();
     renderHearts(); $('score').textContent='0'; $('time').innerHTML='00.00<small>'+T('sec')+'</small>';
     $('bar').style.transform='scaleX(1)'; $('target').innerHTML='';
     $('ovStart').hidden = true; $('ovEnd').hidden = true; $('ovCount').hidden = false;
