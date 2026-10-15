@@ -177,6 +177,9 @@ tr.me td{color:var(--accent);font-weight:700}
 .btn.ico{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--body);font-weight:700;font-size:14px}
 .btn.ico svg{width:18px;height:18px;flex:none}
 #ovShare{z-index:30}
+.lb-tools{display:flex;align-items:center;gap:10px}
+.lb-scroll{max-height:min(52vh,460px)}
+#ovBoard{z-index:25}
 .share-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .share-head h2{font-size:22px}
 .x{width:36px;height:36px;border-radius:10px;border:2px solid var(--line);background:transparent;color:var(--fg);font-size:22px;line-height:1;cursor:pointer}
@@ -239,8 +242,24 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     <input id="nameInput" maxlength="16" autocomplete="nickname" data-i18n-ph="namePh" placeholder="e.g. Fame">
     <div class="err" id="nameErr"></div>
     <button class="btn" type="submit" data-i18n="play">Play</button>
-    <button class="btn ghost ico" type="button" id="inviteStart"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M19 8v6M16 11h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span data-i18n="invite">Invite a friend</span></button>
+    <div class="row">
+      <button class="btn ghost ico" type="button" id="boardStart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5v1.5A3.5 3.5 0 0 0 8.5 11M16 6h3v1.5A3.5 3.5 0 0 1 15.5 11M12 13v4M8.5 20h7M10 17h4v3h-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="leaderboard">Leaderboard</span></button>
+  <button class="btn ghost ico" type="button" id="inviteStart"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M19 8v6M16 11h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span data-i18n="invite">Invite a friend</span></button>
+    </div>
   </form>
+</div>
+
+<!-- Leaderboard sheet (from the start screen) -->
+<div class="overlay" id="ovBoard" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+    <div class="share-head"><h2 id="lbTitle" data-i18n="leaderboard">Leaderboard</h2>
+      <div class="lb-tools"><span class="chip" id="lbKind"></span><button class="x" id="lbClose" type="button" aria-label="Close">×</button></div></div>
+    <div class="board-scroll lb-scroll">
+      <table><thead><tr><th>#</th><th data-i18n="player">Player</th><th class="n" data-i18n="score">Score</th><th class="n" data-i18n="fastest">Fastest</th></tr></thead><tbody id="lbRows"></tbody></table>
+    </div>
+    <p class="note" id="lbEmpty" hidden></p>
+    <button class="btn" type="button" id="lbPlay" data-i18n="play">Play</button>
+  </div>
 </div>
 
 <!-- Share sheet (score or invite) -->
@@ -330,6 +349,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       howEnd:'Use your eyes. Not your luck.',
       yourName:'Your name', namePh:'e.g. Fame', play:'Play', nameErr:'Enter a name so your score can go on the board.',
       total:'Total matched', fastest:'Fastest', high:'High scores', player:'Player', again:'Play again', change:'Change name',
+      leaderboard:'Leaderboard', lbEmpty:'No scores yet. Be the first!', lbLoading:'Loading scores…',
       shareScore:'Share my score', invite:'Invite a friend', message:'Message', copy:'Copy message', saveImg:'Save image', sendVia:'Send with',
       copied:'Copied! Paste it anywhere.', copyFail:'Select the message and copy it.', saved:'Image saved.', saveFail:'Could not save the image.',
       shareTitle:'Share your score', inviteTitle:'Invite a friend',
@@ -347,6 +367,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       howEnd:'ตาดีมีชัย ตาลายก็ไปนอน',
       yourName:'ชื่อของคุณ', namePh:'เช่น Fame', play:'เล่น', nameErr:'ใส่ชื่อก่อน เพื่อบันทึกคะแนนลงตาราง',
       total:'จับคู่ถูกทั้งหมด', fastest:'เร็วที่สุด', high:'คะแนนสูงสุด', player:'ผู้เล่น', again:'เล่นอีกครั้ง', change:'เปลี่ยนชื่อ',
+      leaderboard:'ตารางคะแนน', lbEmpty:'ยังไม่มีใครเล่นเลย มาเป็นคนแรกกัน!', lbLoading:'กำลังโหลดคะแนน…',
       shareScore:'แชร์คะแนน', invite:'ชวนเพื่อนมาเล่น', message:'ข้อความ', copy:'คัดลอกข้อความ', saveImg:'บันทึกรูป', sendVia:'ส่งผ่าน',
       copied:'คัดลอกแล้ว! วางได้เลย', copyFail:'เลือกข้อความแล้วคัดลอกเองนะ', saved:'บันทึกรูปแล้ว', saveFail:'บันทึกรูปไม่สำเร็จ',
       shareTitle:'แชร์คะแนนของคุณ', inviteTitle:'ชวนเพื่อนมาเล่น',
@@ -374,6 +395,7 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     if($('nameErr').textContent) $('nameErr').textContent = T('nameErr');
     if(typeof syncMute === 'function') syncMute();
     if(lastEnd){ renderEnd(); renderBoard(); }
+    if(!$('ovBoard').hidden) renderLb();
   }
   document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => {
     lang = b.dataset.lang; try{ localStorage.setItem(KEY+'-lang', lang); }catch(e){} applyLang();
@@ -674,7 +696,9 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
       if(!res.ok) throw 0;
       Board.rows = cleanRows((await res.json()).rows);
     }catch(e){ if(!Board.rows) Board.rows = null; }
+    Board.loaded = true;
     if(!$('ovEnd').hidden) renderBoard();
+    if(!$('ovBoard').hidden) renderLb();
   }
   const byRank = (a,b) => b.score - a.score || (a.fastest ?? 99) - (b.fastest ?? 99) || a.at - b.at;
   async function submitOnline(entry){
@@ -687,6 +711,24 @@ html[lang="th"] .label,html[lang="th"] th{letter-spacing:.02em}
     }catch(e){ Board.saveFailed = true; if(!Board.rows) await loadBoard(); }
     renderBoard();
   }
+  // Leaderboard on the start screen: the online board, or this device's scores if the server can't be reached.
+  function renderLb(){
+    const online = Array.isArray(Board.rows);
+    const list = online ? Board.rows.slice().sort(byRank).slice(0, 100) : loadScores().slice(0, 50);
+    $('lbRows').innerHTML = list.map((e,i)=>`<tr class="${online && e.me ? 'me' : ''}"><td>${i+1}</td><td>${esc(e.name)}</td><td class="n">${e.score}</td><td class="n">${fmt(e.fastest)}</td></tr>`).join('');
+    const kind = $('lbKind'); kind.textContent = online ? T('online') : T('device'); kind.classList.toggle('online', online);
+    const empty = $('lbEmpty'); empty.hidden = list.length > 0; empty.textContent = Board.loaded ? T('lbEmpty') : T('lbLoading');
+    const box = $('lbRows').closest('.board-scroll'), me = $('lbRows').querySelector('.me');
+    if(me && box) box.scrollTop = Math.max(0, me.offsetTop - box.clientHeight/2);
+  }
+  let lbFocus = null;
+  function openLb(){ lbFocus = document.activeElement; $('ovBoard').hidden = false; $('ovBoard').scrollTop = 0; renderLb(); $('lbClose').focus({preventScroll:true}); loadBoard(); }
+  function closeLb(){ $('ovBoard').hidden = true; if(lbFocus && lbFocus.focus) lbFocus.focus({preventScroll:true}); }
+  $('boardStart').onclick = openLb;
+  $('lbClose').onclick = closeLb;
+  $('lbPlay').onclick = () => { closeLb(); $('nameInput').focus(); if($('nameInput').value.trim()) $('startForm').requestSubmit(); };
+  $('ovBoard').addEventListener('click', ev => { if(ev.target === $('ovBoard')) closeLb(); });
+  document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && !$('ovBoard').hidden) closeLb(); });
   function renderBoard(){
     const online = Array.isArray(Board.rows);
     const list = online ? Board.rows.slice().sort(byRank).slice(0, 100) : Board.local.slice(0, 50);
