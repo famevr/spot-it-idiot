@@ -24,7 +24,8 @@ export default {
         return json({ error: 'Method not allowed' }, 405, { allow: 'GET, POST' });
       } catch (err) {
         console.error(err);
-        return json({ error: 'Server error' }, 500);
+        // The reason helps when setting up (e.g. "no such table" = run schema.sql, missing DB = check wrangler.jsonc).
+        return json({ error: 'Server error', detail: String(err && err.message || err).slice(0, 300) }, 500);
       }
     }
 
