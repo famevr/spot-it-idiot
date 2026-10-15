@@ -15,7 +15,7 @@
       "binding": "DB",
       "database_name": "spot-it-idiot",
       // Step 4 in README.md: paste the database_id that `npx wrangler d1 create` prints.
-      "database_id": "PASTE-YOUR-DATABASE-ID-HERE"
+      "database_id": "52bf7357-a573-4b40-b02c-c38e99261cf6"
     }
   ],
   "observability": { "enabled": true }
