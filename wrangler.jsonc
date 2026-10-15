@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spot-it-idiot",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // The Worker handles the API and the page itself (to fill in the link-preview address).
+    // Images and other files are served straight from Cloudflare's free static hosting.
+    "run_worker_first": ["/", "/index.html", "/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spot-it-idiot",
+      // Step 4 in README.md: paste the database_id that `npx wrangler d1 create` prints.
+      "database_id": "PASTE-YOUR-DATABASE-ID-HERE"
+    }
+  ],
+  "observability": { "enabled": true }
+}
